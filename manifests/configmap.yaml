@@ -97,7 +97,7 @@ data:
             },
             {
               "groupKind": "deployment",
-              "tabs": ["Golden Signal"],
+              "tabs": ["Golden Signal", "Traefik"],
               "rows": [
                  {
                    "name": "httplatency",
@@ -190,12 +190,275 @@ data:
                       "queryExpression": "sum(rate(container_memory_usage_bytes{pod=~\"{{.name}}\", container!=\"POD\", image!=\"\", container!=\"\", container_name!=\"POD\"}[5m])) by (pod)"
                     }
                   ]
+                },
+                {
+                  "name": "traefik_latency",
+                  "title": "Traefik Latency",
+                  "tab": "Traefik",
+                  "graphs": [
+                    {
+                      "name": "traefik_svc_p95_latency",
+                      "title": "Latency p95",
+                      "description": "95th percentile latency via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "yAxisUnit": "s",
+                      "queryExpression": "histogram_quantile(0.95, sum(rate(traefik_service_request_duration_seconds_bucket{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}[5m])) by (le, service))",
+                      "thresholds": [
+                        { "name": "Warning", "key": "warning", "color": "amber", "value": "0.5", "unit": "s" },
+                        { "name": "Critical", "key": "critical", "color": "red", "value": "1", "unit": "s" }
+                      ]
+                    },
+                    {
+                      "name": "traefik_svc_p50_latency",
+                      "title": "Latency p50",
+                      "description": "50th percentile latency via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "yAxisUnit": "s",
+                      "queryExpression": "histogram_quantile(0.50, sum(rate(traefik_service_request_duration_seconds_bucket{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}[5m])) by (le, service))",
+                      "thresholds": [
+                        { "name": "Warning", "key": "warning", "color": "amber", "value": "0.3", "unit": "s" },
+                        { "name": "Critical", "key": "critical", "color": "red", "value": "0.5", "unit": "s" }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "traefik_errors",
+                  "title": "Traefik Error Rate",
+                  "tab": "Traefik",
+                  "graphs": [
+                    {
+                      "name": "traefik_svc_error_5xx",
+                      "title": "5xx Error Rate",
+                      "description": "Rate of 5xx responses via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "queryExpression": "sum(rate(traefik_service_requests_total{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\", code=~\"5..\"}[1m])) by (service, code)"
+                    },
+                    {
+                      "name": "traefik_svc_error_4xx",
+                      "title": "4xx Error Rate",
+                      "description": "Rate of 4xx responses via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "queryExpression": "sum(rate(traefik_service_requests_total{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\", code=~\"4..\"}[1m])) by (service, code)"
+                    }
+                  ]
+                },
+                {
+                  "name": "traefik_traffic",
+                  "title": "Traefik Traffic",
+                  "tab": "Traefik",
+                  "graphs": [
+                    {
+                      "name": "traefik_svc_request_rate",
+                      "title": "Request Rate",
+                      "description": "Total requests per second via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "queryExpression": "sum(rate(traefik_service_requests_total{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}[1m])) by (service)"
+                    },
+                    {
+                      "name": "traefik_svc_open_connections",
+                      "title": "Open Connections",
+                      "description": "Current open connections via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "queryExpression": "sum(traefik_service_open_connections{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}) by (service)"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "groupKind": "IngressRoute",
+              "tabs": ["Golden Signal"],
+              "rows": [
+                {
+                  "name": "httplatency",
+                  "title": "HTTP Latency",
+                  "tab": "Golden Signal",
+                  "graphs": [
+                    {
+                      "name": "traefik_p95_latency",
+                      "title": "Latency p95",
+                      "description": "95th percentile request duration",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "yAxisUnit": "s",
+                      "queryExpression": "histogram_quantile(0.95, sum(rate(traefik_router_request_duration_seconds_bucket{router=~\"{{.namespace}}-{{.name}}.*@kubernetescrd\"}[5m])) by (le, router))",
+                      "thresholds": [
+                        { "name": "Warning", "key": "warning", "color": "amber", "value": "0.5", "unit": "s" },
+                        { "name": "Critical", "key": "critical", "color": "red", "value": "1", "unit": "s" }
+                      ]
+                    },
+                    {
+                      "name": "traefik_p50_latency",
+                      "title": "Latency p50",
+                      "description": "50th percentile request duration",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "yAxisUnit": "s",
+                      "queryExpression": "histogram_quantile(0.50, sum(rate(traefik_router_request_duration_seconds_bucket{router=~\"{{.namespace}}-{{.name}}.*@kubernetescrd\"}[5m])) by (le, router))",
+                      "thresholds": [
+                        { "name": "Warning", "key": "warning", "color": "amber", "value": "0.3", "unit": "s" },
+                        { "name": "Critical", "key": "critical", "color": "red", "value": "0.5", "unit": "s" }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "httperrorrate",
+                  "title": "HTTP Error Rate",
+                  "tab": "Golden Signal",
+                  "graphs": [
+                    {
+                      "name": "traefik_error_rate_5xx",
+                      "title": "5xx Error Rate",
+                      "description": "Rate of 5xx responses",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "queryExpression": "sum(rate(traefik_router_requests_total{router=~\"{{.namespace}}-{{.name}}.*@kubernetescrd\", code=~\"5..\"}[1m])) by (router, code)"
+                    },
+                    {
+                      "name": "traefik_error_rate_4xx",
+                      "title": "4xx Error Rate",
+                      "description": "Rate of 4xx responses",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "queryExpression": "sum(rate(traefik_router_requests_total{router=~\"{{.namespace}}-{{.name}}.*@kubernetescrd\", code=~\"4..\"}[1m])) by (router, code)"
+                    }
+                  ]
+                },
+                {
+                  "name": "httptraffic",
+                  "title": "HTTP Traffic",
+                  "tab": "Golden Signal",
+                  "graphs": [
+                    {
+                      "name": "traefik_request_rate",
+                      "title": "Request Rate",
+                      "description": "Total requests per second",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "queryExpression": "sum(rate(traefik_router_requests_total{router=~\"{{.namespace}}-{{.name}}.*@kubernetescrd\"}[1m])) by (router)"
+                    }
+                  ]
+                },
+                {
+                  "name": "connections",
+                  "title": "Open Connections",
+                  "tab": "Golden Signal",
+                  "graphs": [
+                    {
+                      "name": "traefik_open_connections",
+                      "title": "Open Connections",
+                      "description": "Current open connections",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "queryExpression": "sum(traefik_router_open_connections{router=~\"{{.namespace}}-{{.name}}.*@kubernetescrd\"}) by (router, service)"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "groupKind": "Ingress",
+              "tabs": ["Golden Signal"],
+              "rows": [
+                {
+                  "name": "httplatency",
+                  "title": "HTTP Latency",
+                  "tab": "Golden Signal",
+                  "graphs": [
+                    {
+                      "name": "traefik_p95_latency",
+                      "title": "Latency p95",
+                      "description": "95th percentile request duration",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "yAxisUnit": "s",
+                      "queryExpression": "histogram_quantile(0.95, sum(rate(traefik_router_request_duration_seconds_bucket{router=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}[5m])) by (le, router))",
+                      "thresholds": [
+                        { "name": "Warning", "key": "warning", "color": "amber", "value": "0.5", "unit": "s" },
+                        { "name": "Critical", "key": "critical", "color": "red", "value": "1", "unit": "s" }
+                      ]
+                    },
+                    {
+                      "name": "traefik_p50_latency",
+                      "title": "Latency p50",
+                      "description": "50th percentile request duration",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "yAxisUnit": "s",
+                      "queryExpression": "histogram_quantile(0.50, sum(rate(traefik_router_request_duration_seconds_bucket{router=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}[5m])) by (le, router))",
+                      "thresholds": [
+                        { "name": "Warning", "key": "warning", "color": "amber", "value": "0.3", "unit": "s" },
+                        { "name": "Critical", "key": "critical", "color": "red", "value": "0.5", "unit": "s" }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "httperrorrate",
+                  "title": "HTTP Error Rate",
+                  "tab": "Golden Signal",
+                  "graphs": [
+                    {
+                      "name": "traefik_error_rate_5xx",
+                      "title": "5xx Error Rate",
+                      "description": "Rate of 5xx responses",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "queryExpression": "sum(rate(traefik_router_requests_total{router=~\"{{.namespace}}-{{.name}}.*@kubernetes\", code=~\"5..\"}[1m])) by (router, code)"
+                    },
+                    {
+                      "name": "traefik_error_rate_4xx",
+                      "title": "4xx Error Rate",
+                      "description": "Rate of 4xx responses",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "queryExpression": "sum(rate(traefik_router_requests_total{router=~\"{{.namespace}}-{{.name}}.*@kubernetes\", code=~\"4..\"}[1m])) by (router, code)"
+                    }
+                  ]
+                },
+                {
+                  "name": "httptraffic",
+                  "title": "HTTP Traffic",
+                  "tab": "Golden Signal",
+                  "graphs": [
+                    {
+                      "name": "traefik_request_rate",
+                      "title": "Request Rate",
+                      "description": "Total requests per second",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "queryExpression": "sum(rate(traefik_router_requests_total{router=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}[1m])) by (router)"
+                    }
+                  ]
+                },
+                {
+                  "name": "connections",
+                  "title": "Open Connections",
+                  "tab": "Golden Signal",
+                  "graphs": [
+                    {
+                      "name": "traefik_open_connections",
+                      "title": "Open Connections",
+                      "description": "Current open connections",
+                      "graphType": "line",
+                      "metricName": "router",
+                      "queryExpression": "sum(traefik_router_open_connections{router=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}) by (router, service)"
+                    }
+                  ]
                 }
               ]
             },
             {
               "groupKind": "rollout",
-              "tabs": ["Golden Signal"],
+              "tabs": ["Golden Signal", "Traefik"],
               "rows": [
                  {
                    "name": "httplatency",
@@ -286,6 +549,85 @@ data:
                       "graphType": "pie",
                       "metricName": "pod",
                       "queryExpression": "sum(rate(container_memory_usage_bytes{pod=~\"{{.name}}\", container!=\"POD\", image!=\"\", container!=\"\", container_name!=\"POD\"}[5m])) by (pod)"
+                    }
+                  ]
+                },
+                {
+                  "name": "traefik_latency",
+                  "title": "Traefik Latency",
+                  "tab": "Traefik",
+                  "graphs": [
+                    {
+                      "name": "traefik_svc_p95_latency",
+                      "title": "Latency p95",
+                      "description": "95th percentile latency via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "yAxisUnit": "s",
+                      "queryExpression": "histogram_quantile(0.95, sum(rate(traefik_service_request_duration_seconds_bucket{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}[5m])) by (le, service))",
+                      "thresholds": [
+                        { "name": "Warning", "key": "warning", "color": "amber", "value": "0.5", "unit": "s" },
+                        { "name": "Critical", "key": "critical", "color": "red", "value": "1", "unit": "s" }
+                      ]
+                    },
+                    {
+                      "name": "traefik_svc_p50_latency",
+                      "title": "Latency p50",
+                      "description": "50th percentile latency via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "yAxisUnit": "s",
+                      "queryExpression": "histogram_quantile(0.50, sum(rate(traefik_service_request_duration_seconds_bucket{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}[5m])) by (le, service))",
+                      "thresholds": [
+                        { "name": "Warning", "key": "warning", "color": "amber", "value": "0.3", "unit": "s" },
+                        { "name": "Critical", "key": "critical", "color": "red", "value": "0.5", "unit": "s" }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "traefik_errors",
+                  "title": "Traefik Error Rate",
+                  "tab": "Traefik",
+                  "graphs": [
+                    {
+                      "name": "traefik_svc_error_5xx",
+                      "title": "5xx Error Rate",
+                      "description": "Rate of 5xx responses via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "queryExpression": "sum(rate(traefik_service_requests_total{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\", code=~\"5..\"}[1m])) by (service, code)"
+                    },
+                    {
+                      "name": "traefik_svc_error_4xx",
+                      "title": "4xx Error Rate",
+                      "description": "Rate of 4xx responses via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "queryExpression": "sum(rate(traefik_service_requests_total{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\", code=~\"4..\"}[1m])) by (service, code)"
+                    }
+                  ]
+                },
+                {
+                  "name": "traefik_traffic",
+                  "title": "Traefik Traffic",
+                  "tab": "Traefik",
+                  "graphs": [
+                    {
+                      "name": "traefik_svc_request_rate",
+                      "title": "Request Rate",
+                      "description": "Total requests per second via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "queryExpression": "sum(rate(traefik_service_requests_total{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}[1m])) by (service)"
+                    },
+                    {
+                      "name": "traefik_svc_open_connections",
+                      "title": "Open Connections",
+                      "description": "Current open connections via Traefik service",
+                      "graphType": "line",
+                      "metricName": "service",
+                      "queryExpression": "sum(traefik_service_open_connections{service=~\"{{.namespace}}-{{.name}}.*@kubernetes\"}) by (service)"
                     }
                   ]
                 }

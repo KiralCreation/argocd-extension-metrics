@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/prometheus/common/model"
@@ -110,7 +110,7 @@ func executeGraphQuery(ctx *gin.Context, queryExpression string, env map[string]
 	}
 
 	if len(warnings) > 0 {
-		return result, warnings, fmt.Errorf("query warnings: %s", err)
+		return result, warnings, nil
 	}
 
 	return result, nil, nil
@@ -156,7 +156,8 @@ func (pp *PrometheusProvider) execute(ctx *gin.Context) {
 		result, warnings, err := executeGraphQuery(ctx, graph.QueryExpression, env, duration, pp)
 
 		if err != nil {
-			ctx.JSON(http.StatusBadRequest, err)
+			pp.logger.Errorf("executeGraphQuery error for %s/%s/%s: %v", groupKind, rowName, graphName, err)
+			ctx.JSON(http.StatusBadRequest, err.Error())
 			return
 		}
 		if len(warnings) > 0 {
@@ -184,7 +185,8 @@ func (pp *PrometheusProvider) execute(ctx *gin.Context) {
 					result, warnings, err = executeGraphQuery(ctx, threshold.QueryExpression, env, duration, pp)
 				}
 				if err != nil {
-					ctx.JSON(http.StatusBadRequest, err)
+					pp.logger.Errorf("executeGraphQuery error for threshold %s: %v", threshold.Name, err)
+					ctx.JSON(http.StatusBadRequest, err.Error())
 					return
 				}
 				if len(warnings) > 0 {

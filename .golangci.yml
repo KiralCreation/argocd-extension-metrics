@@ -1,0 +1,30 @@
+version: "2"
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - bodyclose
+    - nilerr
+    - gocognit
+    - gocyclo
+  settings:
+    gocyclo:
+      min-complexity: 20
+    gocognit:
+      min-complexity: 40
+
+formatters:
+  enable:
+    - goimports
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

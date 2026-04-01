@@ -82,7 +82,7 @@ func (pp *PrometheusProvider) init() error {
 func executeGraphQuery(ctx *gin.Context, queryExpression string, env map[string][]string, duration time.Duration, pp *PrometheusProvider) (model.Value, v1.Warnings, error) {
 	tmpl, err := template.New("query").Parse(queryExpression)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing query template: %s", err)
+		return nil, nil, fmt.Errorf("error parsing query template: %w", err)
 	}
 
 	env1 := make(map[string]string)
@@ -93,7 +93,7 @@ func executeGraphQuery(ctx *gin.Context, queryExpression string, env map[string]
 	buf := new(bytes.Buffer)
 	err = tmpl.Execute(buf, env1)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error executing template: %s", err)
+		return nil, nil, fmt.Errorf("error executing template: %w", err)
 	}
 
 	strQuery := buf.String()
@@ -106,7 +106,7 @@ func executeGraphQuery(ctx *gin.Context, queryExpression string, env map[string]
 	result, warnings, err := pp.provider.QueryRange(ctx, strQuery, r)
 
 	if err != nil {
-		return nil, warnings, fmt.Errorf("error querying prometheus: %s", err)
+		return nil, warnings, fmt.Errorf("error querying prometheus: %w", err)
 	}
 
 	if len(warnings) > 0 {

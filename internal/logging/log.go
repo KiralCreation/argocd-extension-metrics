@@ -10,7 +10,7 @@ import (
 // NewLogger returns a new zap.SugaredLogger
 func NewLogger() *zap.SugaredLogger {
 	var config zap.Config
-	debugMode, ok := os.LookupEnv("NUMAFLOW_DEBUG")
+	debugMode, ok := os.LookupEnv("ARGOCD_METRICS_EXT_DEBUG")
 	if ok && debugMode == "true" {
 		config = zap.NewDevelopmentConfig()
 	} else {
@@ -22,7 +22,7 @@ func NewLogger() *zap.SugaredLogger {
 	if err != nil {
 		panic(err)
 	}
-	return logger.Named("numaflow").Sugar()
+	return logger.Named("argocd-metric-ext").Sugar()
 }
 
 type loggerKey struct{}

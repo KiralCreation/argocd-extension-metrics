@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"html/template"
+	"text/template"
 	"net/http"
 	"strconv"
 	"strings"
@@ -50,7 +50,7 @@ func (wf *WaveFrontProvider) init() error {
 	wfConfig := wavefront.Config{
 		Address:       wf.config.Provider.Address,
 		Token:         wf.token,
-		SkipTLSVerify: true,
+		SkipTLSVerify: wf.config.Provider.TLSConfig.InsecureSkipVerify,
 	}
 	var err error
 	wf.provider, err = wavefront.NewClient(&wfConfig)
@@ -68,7 +68,7 @@ func (wf *WaveFrontProvider) getType() string {
 func executeWavefrontGraphQuery(queryExpression string, env map[string][]string, duration time.Duration, wf *WaveFrontProvider) (*wavefront.QueryResponse, error) {
 	tmpl, err := template.New("query").Parse(queryExpression)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing query template: %s", err)
+		return nil, fmt.Errorf("error parsing query template: %w", err)
 	}
 
 	env1 := make(map[string]string)
@@ -79,7 +79,7 @@ func executeWavefrontGraphQuery(queryExpression string, env map[string][]string,
 	buf := new(bytes.Buffer)
 	err = tmpl.Execute(buf, env1)
 	if err != nil {
-		return nil, fmt.Errorf("error executing template: %s", err)
+		return nil, fmt.Errorf("error executing template: %w", err)
 	}
 
 	strQuery := buf.String()
@@ -92,7 +92,7 @@ func executeWavefrontGraphQuery(queryExpression string, env map[string][]string,
 	result, err := query.Execute()
 	if err != nil {
 		wf.logger.Errorw("error in query execution on wavefront", zap.Error(err))
-		return nil, fmt.Errorf("error in query execution on wavefront: %s", err)
+		return nil, fmt.Errorf("error in query execution on wavefront: %w", err)
 	}
 	return result, nil
 }

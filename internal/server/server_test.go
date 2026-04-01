@@ -116,7 +116,7 @@ func createContextAndNewO11yServer(w *httptest.ResponseRecorder) (ctx *gin.Conte
 	var port int
 	var enableTLS bool
 	logger := logging.NewLogger().Named("metric-sever")
-	ms = NewO11yServer(logger, port, enableTLS)
+	ms = NewO11yServer(logger, port, enableTLS, "app/config.json")
 	var temp MetricsProvider = MockO11yServer{}
 	ms.provider = temp
 	ctx = GetTestGinContext(w)

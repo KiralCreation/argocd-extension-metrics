@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -21,11 +20,12 @@ const PROMETHEUS_TYPE = "prometheus"
 const WAVEFRONT_TYPE = "wavefront"
 
 type O11yServer struct {
-	logger    *zap.SugaredLogger
-	config    O11yConfig
-	provider  MetricsProvider
-	port      int
-	enableTLS bool
+	logger     *zap.SugaredLogger
+	config     O11yConfig
+	provider   MetricsProvider
+	port       int
+	enableTLS  bool
+	configPath string
 }
 
 type MetricsProvider interface {
@@ -64,25 +64,24 @@ func validatePathParam(pathParam string, pathParamName string) error {
 	return nil
 }
 
-func NewO11yServer(logger *zap.SugaredLogger, port int, enableTLS bool) O11yServer {
+func NewO11yServer(logger *zap.SugaredLogger, port int, enableTLS bool, configPath string) O11yServer {
 	return O11yServer{
-		logger:    logger,
-		port:      port,
-		enableTLS: enableTLS,
+		logger:     logger,
+		port:       port,
+		enableTLS:  enableTLS,
+		configPath: configPath,
 	}
 }
-func (ms *O11yServer) Run(ctx context.Context) {
+func (ms *O11yServer) Run(ctx context.Context) error {
 
-	err := ms.readConfig()
-
-	if err != nil {
-		panic(err)
+	if err := ms.readConfig(); err != nil {
+		return fmt.Errorf("loading config: %w", err)
 	}
 	if ms.config.Prometheus != nil {
 		ms.provider = NewPrometheusProvider(ms.config.Prometheus, ms.logger)
 		err := ms.provider.init()
 		if err != nil {
-			log.Panic(err)
+			ms.logger.Fatalf("prometheus provider init: %v", err)
 		}
 	} else if ms.config.Wavefront != nil {
 		token, found := os.LookupEnv("WAVEFRONT_TOKEN")
@@ -92,7 +91,7 @@ func (ms *O11yServer) Run(ctx context.Context) {
 		ms.provider = NewWavefrontProvider(ms.config.Wavefront, token, ms.logger)
 		err := ms.provider.init()
 		if err != nil {
-			log.Panic(err)
+			ms.logger.Fatalf("wavefront provider init: %v", err)
 		}
 	}
 	handler := gin.Default()
@@ -109,10 +108,10 @@ func (ms *O11yServer) Run(ctx context.Context) {
 	address := fmt.Sprintf(":%d", ms.port)
 	ms.logger.Infof("Server Configs: [address: %s, enableTLS: %t]", address, ms.enableTLS)
 	if ms.enableTLS {
-		ms.runWithTLS(address, handler)
-	} else {
-		ms.run(address, handler)
+		return ms.runWithTLS(address, handler)
 	}
+	ms.run(address, handler)
+	return nil
 }
 func (ms *O11yServer) run(address string, handler *gin.Engine) {
 	ms.logger.Infof("Starting Argo Metrics Server.. %s", address)
@@ -125,11 +124,11 @@ func (ms *O11yServer) run(address string, handler *gin.Engine) {
 	}
 }
 
-func (ms *O11yServer) runWithTLS(address string, handler *gin.Engine) {
+func (ms *O11yServer) runWithTLS(address string, handler *gin.Engine) error {
 	ms.logger.Infof("Starting Argo Metrics Server with TLS.. %s", address)
 	cert, err := tls2.GenerateX509KeyPair()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("generating TLS certificate: %w", err)
 	}
 	server := http.Server{
 		Addr:      address,
@@ -139,6 +138,7 @@ func (ms *O11yServer) runWithTLS(address string, handler *gin.Engine) {
 	if err := server.ListenAndServeTLS("", ""); err != nil {
 		ms.logger.Fatal(err)
 	}
+	return nil
 }
 
 func (ms *O11yServer) queryMetrics(ctx *gin.Context) {
@@ -177,7 +177,7 @@ func (ms *O11yServer) queryMetrics(ctx *gin.Context) {
 	}
 
 	if applicationNameHeader != applicationNameQueryParam {
-		msg := "Application name mismatch. Value from the header is different from the url."
+		msg := "application name mismatch: value from the header is different from the url"
 		err := errors.New(msg)
 		ms.logger.Warn(msg)
 		ctx.JSON(400, gin.H{"error": err.Error()})
@@ -185,7 +185,7 @@ func (ms *O11yServer) queryMetrics(ctx *gin.Context) {
 	}
 
 	if projectHeader != projectQueryParam {
-		msg := "Project mismatch. Value from the header is different from the url."
+		msg := "project mismatch: value from the header is different from the url"
 		err := errors.New(msg)
 		ms.logger.Warn(msg)
 		ctx.JSON(400, gin.H{"error": err.Error()})
@@ -214,7 +214,7 @@ func (ms *O11yServer) dashboardConfig(ctx *gin.Context) {
 		return
 	}
 	if applicationNameHeader != applicationNamePathParam {
-		msg := "Application name mismatch. Value from the header is different from the url."
+		msg := "application name mismatch: value from the header is different from the url"
 		err := errors.New(msg)
 		ms.logger.Warn(msg)
 		ctx.JSON(400, gin.H{"error": err.Error()})
@@ -224,17 +224,12 @@ func (ms *O11yServer) dashboardConfig(ctx *gin.Context) {
 }
 
 func (ms *O11yServer) readConfig() error {
-	yamlFile, err := os.ReadFile("app/config.json")
+	yamlFile, err := os.ReadFile(ms.configPath)
 	if err != nil {
-		fmt.Printf("yamlFile.Get err   #%v ", err)
+		return fmt.Errorf("reading config: %w", err)
 	}
-	//var configData map[string]string
-	fmt.Println(string(yamlFile))
-	err = json.Unmarshal(yamlFile, &ms.config)
-
-	if err != nil {
-		log.Fatalf("Unmarshal: %v", err)
-		return err
+	if err = json.Unmarshal(yamlFile, &ms.config); err != nil {
+		return fmt.Errorf("unmarshaling config: %w", err)
 	}
 	return nil
 }

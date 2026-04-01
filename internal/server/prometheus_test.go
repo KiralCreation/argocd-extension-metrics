@@ -2,9 +2,10 @@ package server
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"text/template"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestExpression(t *testing.T) {

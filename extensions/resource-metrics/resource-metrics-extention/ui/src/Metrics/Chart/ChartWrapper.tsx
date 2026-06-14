@@ -6,13 +6,8 @@ import AnomalyChart from "./AnomalyChart";
 import TimeSeriesChart from "./Chart";
 import type {
   AllChartDataProps,
-  ChartDataProps,
-  CustomPrometheusResponse,
-  CustomWavefrontResponse,
-  PrometheusResponse,
-  WavefrontThresholdResponse,
-  WavefrontTS,
 } from "./types";
+import { formatChartData } from "./dataFormatter";
 
 export const colorArray = [
   "#00A2B3",
@@ -60,141 +55,6 @@ export const ChartWrapper = ({
 }: any) => {
   const [chartsData, setChartsData] = useState<AllChartDataProps>({});
 
-  const formatChartData = useMemo(
-    () =>
-      ({
-        data,
-        groupBy,
-        yFormatter = (y: any): number => { return (isNaN(y) ? 0 : (y * 1)) },
-        xFormatter = (x: any): number => Math.floor(x * 1),
-      }: {
-        data: CustomPrometheusResponse & CustomWavefrontResponse;
-        groupBy: string;
-        yFormatter?: (arg0: number) => number;
-        xFormatter?: (arg0: number) => number;
-      }) => {
-        const formattedData: Array<ChartDataProps> = [];
-        const formattedThresholdData: Array<ChartDataProps> = [];
-        // TODO: move this into another abstracted functionality
-        if (data?.data?.granularity) {
-          // Wavefront Data
-          //This code is in the alpha phase and requires thorough testing.
-          data?.data?.timeseries?.map((obj: WavefrontTS) => {
-            if (!obj?.tags?.[groupBy] && !obj?.data?.length) {
-              return false;
-            }
-            const metricObj: ChartDataProps = {
-              ...obj,
-              name: obj?.tags && Object.values(obj?.tags).join(":"),
-              data: [],
-              key: "",
-              color: "",
-              unit: "",
-              value: "",
-              isThreshold: false,
-            };
-            metricObj.data = obj?.data;
-            formattedData.push(metricObj);
-          });
-
-          data?.thresholds?.map((temp: WavefrontThresholdResponse) => {
-            temp?.data?.timeseries?.map((obj: WavefrontTS) => {
-              if (!obj?.tags?.[groupBy] && !obj?.data?.length) {
-                return false;
-              }
-              const metricObj: ChartDataProps = {
-                ...obj,
-                name: temp.name,
-                data: [],
-                key: temp?.key,
-                value: temp?.value,
-                color: temp?.color,
-                unit: temp?.unit,
-                isThreshold: true,
-              };
-              metricObj.data = obj?.data;
-              formattedData.push(metricObj);
-            });
-          });
-        } else {
-          // Prometheus Data
-          data?.data?.map((obj: PrometheusResponse) => {
-            if (!obj?.["metric"]?.[groupBy] && !obj?.values?.length) {
-              return false;
-            }
-            const metricObj: ChartDataProps = {
-              ...obj,
-              name:
-                obj?.metric && typeof obj?.metric?.[groupBy] === "string"
-                  ? (obj?.metric?.[groupBy] as string)
-                  : Object.values(obj?.metric).join(":"),
-              data: [],
-              key: "",
-              color: "",
-              unit: "",
-              value: "",
-              isThreshold: false,
-            };
-            obj?.values?.map((kp: [any, any], i: number) => {
-              if (
-                obj?.values?.length &&
-                metricObj.data?.[i - 1]?.[0] < kp[0] - 61
-              ) {
-                metricObj.data.push({
-                  x: (obj?.values?.[i - 1]?.[0] || 0) + 60,
-                  y: null,
-                });
-                return;
-              }
-              metricObj.data.push({
-                x: xFormatter(kp[0]),
-                y: yFormatter(kp[1]),
-              });
-            });
-            formattedData.push(metricObj);
-          });
-
-          data?.thresholds?.map((temp) => {
-            temp?.data?.map((obj: PrometheusResponse) => {
-              if (!obj?.["metric"]?.[groupBy] && !obj?.values?.length) {
-                return false;
-              }
-              const metricObj: ChartDataProps = {
-                ...obj,
-                name: temp?.name,
-                data: [],
-                key: temp?.key,
-                value: temp?.value,
-                color: temp?.color,
-                unit: temp?.unit,
-                isThreshold: true,
-              };
-              obj?.values?.map((kp: [any, any], i: number) => {
-                if (
-                  obj?.values?.length &&
-                  metricObj.data?.[i - 1]?.[0] < kp[0] - 61
-                ) {
-                  metricObj.data.push({
-                    x: (obj?.values?.[i - 1]?.[0] || 0) + 60,
-                    y: null,
-                  });
-                  return;
-                }
-                metricObj.data.push({
-                  x: xFormatter(kp[0]),
-                  y: yFormatter(kp[1]),
-                });
-              });
-              formattedThresholdData.push(metricObj);
-            });
-          });
-        }
-
-        return { data: formattedData, thresholds: formattedThresholdData };
-      },
-    [labelKey, groupBy, name, title, metric, yUnit]
-  );
-
   useEffect(() => {
     const url = `${queryPath}`;
     apiCall(
@@ -208,7 +68,7 @@ export const ChartWrapper = ({
       .then((data) => {
         setChartsData({
           ...chartsData,
-          [metric]: formatChartData({ data, groupBy }),
+          [metric]: formatChartData({ data, groupBy, yFormatter }),
         });
       })
       .catch((err) => {

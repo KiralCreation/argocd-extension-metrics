@@ -122,6 +122,81 @@ If the tab does not appear:
 - For Wavefront provider, set `WAVEFRONT_TOKEN` from a Kubernetes Secret
   (see `manifests/deployment.yaml` commented example).
 
+### Wavefront example configuration
+
+For Wavefront-backed dashboards, set `wavefront` in `config.json` and inject
+`WAVEFRONT_TOKEN` into the server Deployment:
+
+```json
+{
+  "wavefront": {
+    "applications": [
+      {
+        "name": "default",
+        "default": true,
+        "dashboards": [
+          {
+            "groupKind": "deployment",
+            "rows": [
+              {
+                "name": "pod",
+                "title": "Pods",
+                "graphs": [
+                  {
+                    "name": "pod_cpu_line",
+                    "title": "CPU",
+                    "graphType": "line",
+                    "metricName": "pod",
+                    "queryExpression": "ts(kubernetes.pod.cpu.usage, pod=~\"{{.name}}\")"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "provider": {
+      "name": "default",
+      "default": true,
+      "address": "https://<your-instance>.wavefront.com"
+    }
+  }
+}
+```
+
+Kubernetes Secret + env wiring:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-metrics-server-wavefront
+type: Opaque
+stringData:
+  token: "<wavefront-api-token>"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-metrics-server
+spec:
+  template:
+    spec:
+      containers:
+        - name: argocd-metrics-server
+          env:
+            - name: WAVEFRONT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: argocd-metrics-server-wavefront
+                  key: token
+```
+
+`/home/runner/work/argocd-extension-metrics/argocd-extension-metrics/KiralCreation/argocd-extension-metrics/manifests/configmap.yaml`
+includes a `wavefront.config.example.json` key that can be copied into
+`config.json` when enabling the Wavefront provider.
+
 ## Prioritized Roadmap (P0/P1/P2)
 
 For full details, see `docs/SPEC.md` section **7. Roadmap — Planned Features**.

@@ -257,3 +257,65 @@ func TestQueryMetricsRateLimitPerApplication(t *testing.T) {
 	ms.queryMetrics(ctx2)
 	assert.EqualValues(t, http.StatusTooManyRequests, w2.Code)
 }
+
+func TestQueryMetricsRateLimitIsPerApplication(t *testing.T) {
+	ms := NewO11yServer(logging.NewLogger().Named("metric-sever"), 0, false, "app/config.json", "", "")
+	ms.provider = MockO11yServer{}
+	ms.limiter = newAppRateLimiter(1)
+
+	headersApp1 := map[string][]string{
+		"Argocd-Application-Name": {"argo:app-one"},
+		"Argocd-Project-Name":     {"default"},
+	}
+	headersApp2 := map[string][]string{
+		"Argocd-Application-Name": {"argo:app-two"},
+		"Argocd-Project-Name":     {"default"},
+	}
+
+	w1 := httptest.NewRecorder()
+	ctx1 := GetTestGinContext(w1)
+	MockJsonGet(ctx1, headersApp1, map[string]string{}, map[string]string{
+		"application_name": "app-one",
+		"project":          "default",
+	})
+	ms.queryMetrics(ctx1)
+	assert.EqualValues(t, http.StatusOK, w1.Code)
+
+	w2 := httptest.NewRecorder()
+	ctx2 := GetTestGinContext(w2)
+	MockJsonGet(ctx2, headersApp2, map[string]string{}, map[string]string{
+		"application_name": "app-two",
+		"project":          "default",
+	})
+	ms.queryMetrics(ctx2)
+	assert.EqualValues(t, http.StatusOK, w2.Code)
+}
+
+type providerErrorMock struct{}
+
+func (providerErrorMock) init() error { return nil }
+func (providerErrorMock) execute(ctx *gin.Context) {
+	ctx.JSON(http.StatusBadGateway, gin.H{"error": "upstream query failed"})
+}
+func (providerErrorMock) getDashboard(ctx *gin.Context) {
+	ctx.JSON(http.StatusBadGateway, gin.H{"error": "upstream dashboard failed"})
+}
+func (providerErrorMock) getType() string { return "error" }
+
+func TestQueryMetricsProviderErrorIsPropagated(t *testing.T) {
+	ms := NewO11yServer(logging.NewLogger().Named("metric-sever"), 0, false, "app/config.json", "", "")
+	ms.provider = providerErrorMock{}
+
+	w := httptest.NewRecorder()
+	ctx := GetTestGinContext(w)
+	MockJsonGet(ctx, map[string][]string{
+		"Argocd-Application-Name": {"argo:test"},
+		"Argocd-Project-Name":     {"default"},
+	}, map[string]string{}, map[string]string{
+		"application_name": "test",
+		"project":          "default",
+	})
+	ms.queryMetrics(ctx)
+	assert.EqualValues(t, http.StatusBadGateway, w.Code)
+	assert.Contains(t, w.Body.String(), "upstream query failed")
+}

@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"text/template"
 	"net/http"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"go.uber.org/zap"
@@ -21,6 +21,7 @@ type WaveFrontProvider struct {
 	provider *wavefront.Client
 	config   *MetricsConfigProvider
 	token    string
+	queryFn  func(queryExpression string, env map[string][]string, duration time.Duration, wf *WaveFrontProvider) (*wavefront.QueryResponse, error)
 }
 
 // getDashboard returns the dashboard configuration for the specified application
@@ -42,7 +43,12 @@ func (wf *WaveFrontProvider) getDashboard(ctx *gin.Context) {
 }
 
 func NewWavefrontProvider(waveFrontConfig *MetricsConfigProvider, token string, logger *zap.SugaredLogger) *WaveFrontProvider {
-	return &WaveFrontProvider{config: waveFrontConfig, token: token, logger: logger}
+	return &WaveFrontProvider{
+		config:  waveFrontConfig,
+		token:   token,
+		logger:  logger,
+		queryFn: executeWavefrontGraphQuery,
+	}
 }
 
 func (wf *WaveFrontProvider) init() error {
@@ -135,7 +141,7 @@ func (wf *WaveFrontProvider) execute(ctx *gin.Context) {
 		wf.logger.Infow("Query execution", zap.Any("query", graph.QueryExpression), zap.Any("graphName", graph.Name), zap.Any("rowName", row.Name))
 
 		var data AggregatedResponse
-		result, err := executeWavefrontGraphQuery(graph.QueryExpression, env, duration, wf)
+		result, err := wf.queryFn(graph.QueryExpression, env, duration, wf)
 
 		if err != nil {
 			wf.logger.Errorw("Error in query execution on wavefront", zap.Error(err))
@@ -158,9 +164,9 @@ func (wf *WaveFrontProvider) execute(ctx *gin.Context) {
 
 				//If threshold.value present, threshold.value gets executed else,threshold.queryExpression gets executed.
 				if threshold.Value != "" {
-					result, err = executeWavefrontGraphQuery(threshold.Value, env, duration, wf)
+					result, err = wf.queryFn(threshold.Value, env, duration, wf)
 				} else {
-					result, err = executeWavefrontGraphQuery(threshold.QueryExpression, env, duration, wf)
+					result, err = wf.queryFn(threshold.QueryExpression, env, duration, wf)
 				}
 				if err != nil {
 					ctx.JSON(http.StatusBadRequest, err)
@@ -180,11 +186,9 @@ func (wf *WaveFrontProvider) execute(ctx *gin.Context) {
 
 				finalResultArr = append(finalResultArr, temp)
 			}
-			data.Thresholds = finalResultArr
-
-			ctx.JSON(http.StatusOK, data)
-
-			return
 		}
+		data.Thresholds = finalResultArr
+		ctx.JSON(http.StatusOK, data)
+		return
 	}
 }

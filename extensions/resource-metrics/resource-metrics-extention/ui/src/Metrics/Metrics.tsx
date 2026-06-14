@@ -1,6 +1,6 @@
 /* eslint-disable jsx-a11y/anchor-is-valid */
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 import ChartWrapper from "./Chart/ChartWrapper";
 import "./Metrics.scss";
@@ -59,8 +59,67 @@ export const Metrics = ({
       });
   }, [applicationName, applicationNamespace, project, resource.kind]);
 
+  const visibleRows = useMemo(() => {
+    return (
+      dashboard?.rows?.filter(
+        (r: any) => !dashboard?.tabs?.length || r?.tab === selectedTab || (!r?.tab && selectedTab === "More")
+      ) || []
+    );
+  }, [dashboard, selectedTab]);
+
+  const healthSummary = useMemo(() => {
+    const totalGraphs = visibleRows.reduce(
+      (sum: number, row: any) => sum + (row?.graphs?.length || 0),
+      0
+    );
+    const thresholdGraphs = visibleRows.reduce(
+      (sum: number, row: any) =>
+        sum +
+        (row?.graphs?.filter((graph: any) => (graph?.thresholds || []).length > 0)
+          ?.length || 0),
+      0
+    );
+    return {
+      rows: visibleRows.length,
+      graphs: totalGraphs,
+      thresholdGraphs,
+      recentEvents: events?.length || 0,
+      providerType: dashboard?.providerType || "unknown",
+    };
+  }, [visibleRows, events, dashboard?.providerType]);
+
   return (
     <div>
+      {dashboard?.rows?.length > 0 && (
+        <div className="application-metrics__HealthSummary">
+          <div className="application-metrics__HealthSummaryItem">
+            <span className="application-metrics__HealthSummaryLabel">Provider</span>
+            <span className="application-metrics__HealthSummaryValue">
+              {healthSummary.providerType}
+            </span>
+          </div>
+          <div className="application-metrics__HealthSummaryItem">
+            <span className="application-metrics__HealthSummaryLabel">Rows</span>
+            <span className="application-metrics__HealthSummaryValue">{healthSummary.rows}</span>
+          </div>
+          <div className="application-metrics__HealthSummaryItem">
+            <span className="application-metrics__HealthSummaryLabel">Charts</span>
+            <span className="application-metrics__HealthSummaryValue">{healthSummary.graphs}</span>
+          </div>
+          <div className="application-metrics__HealthSummaryItem">
+            <span className="application-metrics__HealthSummaryLabel">Threshold charts</span>
+            <span className="application-metrics__HealthSummaryValue">
+              {healthSummary.thresholdGraphs}
+            </span>
+          </div>
+          <div className="application-metrics__HealthSummaryItem">
+            <span className="application-metrics__HealthSummaryLabel">Recent events</span>
+            <span className="application-metrics__HealthSummaryValue">
+              {healthSummary.recentEvents}
+            </span>
+          </div>
+        </div>
+      )}
       {dashboard?.tabs?.length && (
         <div className="application-metrics__Tabs">
           {dashboard?.tabs?.map((tab: string) => {
@@ -104,14 +163,7 @@ export const Metrics = ({
           </p>
         )}
 
-      {dashboard?.rows?.map((row: any) => {
-        if (
-          dashboard?.tabs?.length &&
-          row?.tab !== selectedTab &&
-          !(!row?.tab && selectedTab === "More")
-        ) {
-          return <></>;
-        }
+      {visibleRows?.map((row: any) => {
         return (
           <>
             <div className="application-metrics">

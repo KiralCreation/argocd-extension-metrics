@@ -15,6 +15,73 @@ This extension is composed by 2 components:
 
 ## Quick Start
 
+### Install in Argo CD (end-to-end)
+
+The steps below install both components in the `argocd` namespace and wire Argo CD to use the extension.
+
+1. Deploy the metrics server (Deployment, Service, and example ConfigMap):
+
+```sh
+kubectl apply -n argocd -k ./manifests
+```
+
+2. Patch `argocd-server` to download and mount the UI extension bundle:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-server
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: extension-metrics
+          image: quay.io/argoprojlabs/argocd-extension-installer:v0.0.1
+          env:
+            - name: EXTENSION_URL
+              value: https://github.com/argoproj-labs/argocd-extension-metrics/releases/download/v1.0.0/extension.tar.gz
+            - name: EXTENSION_CHECKSUM_URL
+              value: https://github.com/argoproj-labs/argocd-extension-metrics/releases/download/v1.0.0/extension_checksums.txt
+          volumeMounts:
+            - name: extensions
+              mountPath: /tmp/extensions/
+          securityContext:
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+      containers:
+        - name: argocd-server
+          volumeMounts:
+            - name: extensions
+              mountPath: /tmp/extensions/
+      volumes:
+        - name: extensions
+          emptyDir: {}
+```
+
+3. Enable and authorize proxy extensions in Argo CD:
+
+- In `argocd-cmd-params-cm`:
+  ```yaml
+  server.enable.proxy.extension: "true"
+  ```
+- In `argocd-rbac-cm`:
+  ```yaml
+  policy.csv: |-
+    p, role:readonly, extensions, invoke, metrics, allow
+  ```
+- In `argocd-cm`:
+  ```yaml
+  extension.config: |-
+    extensions:
+      - name: metrics
+        backend:
+          services:
+            - url: http://argocd-metrics-server.argocd.svc.cluster.local:9003
+  ```
+
+4. Restart `argocd-server` and open an Application resource in Argo CD. You should see the **Metrics** tab.
+
 ### Install `argocd-metrics-server`
 
 The `manifests` folder in this repo contains an example of how the
@@ -33,7 +100,7 @@ Argo CD UI. This configmap must be changed depending on the metrics
 available in your Prometheus instance.
 
 
-### Install UI extension
+### Install UI extension (details)
 
 The UI extension needs to be installed by mounting the React component
 in Argo CD API server. This process can be automated by using the
@@ -76,7 +143,7 @@ spec:
           emptyDir: {}
 ```
 
-### Enabling the Metrics extension in Argo CD
+### Enabling the Metrics extension in Argo CD (details)
 
 Argo CD needs to have the proxy extension feature enabled for the
 metrics extension to work. In order to do so add the following entry

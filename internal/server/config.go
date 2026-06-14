@@ -105,4 +105,9 @@ func (p *MetricsConfigProvider) getApp(name string) *Application {
 type O11yConfig struct {
 	Prometheus *MetricsConfigProvider `json:"prometheus"`
 	Wavefront  *MetricsConfigProvider `json:"wavefront"`
+	Server     *ServerConfig          `json:"server,omitempty"`
+}
+
+type ServerConfig struct {
+	QueryRateLimitPerAppPerMinute int `json:"queryRateLimitPerAppPerMinute"`
 }

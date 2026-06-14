@@ -104,8 +104,23 @@ If the tab does not appear:
 - Dashboards and graphs are configured in `manifests/configmap.yaml` (`config.json`).
 - The shipped configuration is an example and should be adapted to your
   metric names/labels.
+- Optional server-level query rate limiting per application can be configured in
+  config as:
+  ```json
+  {
+    "server": {
+      "queryRateLimitPerAppPerMinute": 60
+    }
+  }
+  ```
 - The default in-cluster service URL is:
   `http://argocd-metrics-server.argocd.svc.cluster.local:9003`
+- TLS options:
+  - By default, with `-enableTLS=true`, the server generates a self-signed cert.
+  - To use externally issued certificates (recommended), set:
+    `-tls-cert-file=/tls/tls.crt -tls-key-file=/tls/tls.key` and mount a TLS Secret.
+- For Wavefront provider, set `WAVEFRONT_TOKEN` from a Kubernetes Secret
+  (see `manifests/deployment.yaml` commented example).
 
 ## Prioritized Roadmap (P0/P1/P2)
 

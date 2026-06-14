@@ -116,7 +116,7 @@ func createContextAndNewO11yServer(w *httptest.ResponseRecorder) (ctx *gin.Conte
 	var port int
 	var enableTLS bool
 	logger := logging.NewLogger().Named("metric-sever")
-	ms = NewO11yServer(logger, port, enableTLS, "app/config.json")
+	ms = NewO11yServer(logger, port, enableTLS, "app/config.json", "", "")
 	var temp MetricsProvider = MockO11yServer{}
 	ms.provider = temp
 	ctx = GetTestGinContext(w)
@@ -218,4 +218,42 @@ func MockJsonGet(c *gin.Context, header map[string][]string, pathParams map[stri
 		temp.Add(key, value)
 	}
 	c.Request.URL.RawQuery = temp.Encode()
+}
+
+func TestQueryMetricsInvalidApplicationHeaderFormat(t *testing.T) {
+	w := httptest.NewRecorder()
+	ctx, ms := createContextAndNewO11yServer(w)
+	MockJsonGet(ctx, map[string][]string{
+		"Argocd-Application-Name": []string{"test"},
+		"Argocd-Project-Name":     []string{"default"},
+	}, map[string]string{}, map[string]string{
+		"application_name": "test",
+		"project":          "default",
+	})
+	ms.queryMetrics(ctx)
+	assert.EqualValues(t, http.StatusBadRequest, w.Code)
+}
+
+func TestQueryMetricsRateLimitPerApplication(t *testing.T) {
+	headers := map[string][]string{
+		"Argocd-Application-Name": []string{"argo:test"},
+		"Argocd-Project-Name":     []string{"default"},
+	}
+	queryParams := map[string]string{
+		"application_name": "test",
+		"project":          "default",
+	}
+
+	w1 := httptest.NewRecorder()
+	ctx1, ms := createContextAndNewO11yServer(w1)
+	ms.limiter = newAppRateLimiter(1)
+	MockJsonGet(ctx1, headers, map[string]string{}, queryParams)
+	ms.queryMetrics(ctx1)
+	assert.EqualValues(t, http.StatusOK, w1.Code)
+
+	w2 := httptest.NewRecorder()
+	ctx2 := GetTestGinContext(w2)
+	MockJsonGet(ctx2, headers, map[string]string{}, queryParams)
+	ms.queryMetrics(ctx2)
+	assert.EqualValues(t, http.StatusTooManyRequests, w2.Code)
 }

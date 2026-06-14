@@ -5,6 +5,9 @@ metadata:
 data:
   config.json: |
     {
+    "server": {
+      "queryRateLimitPerAppPerMinute": 0
+    },
     "prometheus": {
       "applications": [
         {

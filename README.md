@@ -107,6 +107,21 @@ If the tab does not appear:
 - The default in-cluster service URL is:
   `http://argocd-metrics-server.argocd.svc.cluster.local:9003`
 
+## Prioritized Roadmap (P0/P1/P2)
+
+For full details, see `docs/SPEC.md` section **7. Roadmap — Planned Features**.
+
+- **P0 (must-have next):**
+  - Security hardening (`7.7`): external TLS cert support, Wavefront token via Secret, query rate limiting.
+  - Wavefront Provider GA (`7.1`): integration tests, docs/manifests updates, response parity validation.
+- **P1 (high-value next):**
+  - Health Score Summary Bar (`7.4`) for at-a-glance status.
+  - Alerting Integration (`7.5`) to show active alerts next to charts.
+  - Additional Resource Kinds (`7.6`): StatefulSet, DaemonSet, Job/CronJob, Service.
+- **P2 (larger/structural):**
+  - Multiple Metrics Providers (`7.2`) with schema versioning and migration path.
+  - Config UI in-cluster editor (`7.3`) with RBAC and backend config endpoint.
+
 ## Contributing
 
 ### Local setup

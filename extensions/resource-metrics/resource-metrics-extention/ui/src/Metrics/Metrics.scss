@@ -16,14 +16,68 @@
     border-radius: 6px;
     padding: 0.8em 1em;
     display: flex;
+    flex-direction: column;
+    gap: 0.8em;
+  }
+
+  &__HealthSummaryHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5em;
     flex-wrap: wrap;
-    gap: 1em;
+  }
+
+  &__HealthSummaryTitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #172b4d;
+    text-transform: uppercase;
+  }
+
+  &__HealthSummaryStatus {
+    border-radius: 999px;
+    padding: 0.2em 0.7em;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+
+    &--healthy {
+      color: #1f7a39;
+      background: #e9f7ee;
+    }
+
+    &--elevated {
+      color: #8a5b00;
+      background: #fff4df;
+    }
+
+    &--critical {
+      color: #a6192e;
+      background: #ffe7eb;
+    }
+
+    &--unknown {
+      color: #586069;
+      background: #eceff3;
+    }
+  }
+
+  &__HealthSummarySignals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.7em;
   }
 
   &__HealthSummaryItem {
     display: flex;
-    align-items: center;
-    gap: 0.4em;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3em;
+    background: #fff;
+    border: 1px solid #dde5eb;
+    border-radius: 6px;
+    padding: 0.6em 0.7em;
   }
 
   &__HealthSummaryLabel {
@@ -36,6 +90,63 @@
     font-size: 14px;
     font-weight: 600;
     color: #172b4d;
+  }
+
+  &__HealthSummaryBadge {
+    border-radius: 999px;
+    padding: 0.1em 0.55em;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+
+    &--healthy {
+      color: #1f7a39;
+      background: #e9f7ee;
+    }
+
+    &--elevated {
+      color: #8a5b00;
+      background: #fff4df;
+    }
+
+    &--critical {
+      color: #a6192e;
+      background: #ffe7eb;
+    }
+
+    &--unknown {
+      color: #586069;
+      background: #eceff3;
+    }
+  }
+
+  &__HealthSummarySparkline {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    width: 100%;
+    min-height: 30px;
+  }
+
+  &__HealthSummarySpark {
+    flex: 1;
+    border-radius: 2px 2px 0 0;
+    background: #6b7c93;
+    min-width: 4px;
+  }
+
+  &__HealthSummaryNoData {
+    font-size: 11px;
+    color: #6b7c93;
+  }
+
+  &__HealthSummaryMeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8em;
+    font-size: 11px;
+    color: #6b7c93;
+    text-transform: uppercase;
   }
 
   &__RowTitle {

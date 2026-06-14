@@ -51,7 +51,8 @@ export const ChartWrapper = ({
   setFilterChart,
   highlight,
   setHighlight,
-  description
+  description,
+  onChartData,
 }: any) => {
   const [chartsData, setChartsData] = useState<AllChartDataProps>({});
 
@@ -66,10 +67,14 @@ export const ChartWrapper = ({
       })
     )
       .then((data) => {
-        setChartsData({
-          ...chartsData,
-          [metric]: formatChartData({ data, groupBy, yFormatter }),
-        });
+        const formattedData = formatChartData({ data, groupBy, yFormatter });
+        setChartsData((prevData) => ({
+          ...prevData,
+          [metric]: formattedData,
+        }));
+        if (onChartData) {
+          onChartData(formattedData);
+        }
       })
       .catch((err) => {
         console.error("res.data", err);

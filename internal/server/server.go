@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -20,12 +22,15 @@ const PROMETHEUS_TYPE = "prometheus"
 const WAVEFRONT_TYPE = "wavefront"
 
 type O11yServer struct {
-	logger     *zap.SugaredLogger
-	config     O11yConfig
-	provider   MetricsProvider
-	port       int
-	enableTLS  bool
-	configPath string
+	logger      *zap.SugaredLogger
+	config      O11yConfig
+	provider    MetricsProvider
+	port        int
+	enableTLS   bool
+	configPath  string
+	tlsCertFile string
+	tlsKeyFile  string
+	limiter     *appRateLimiter
 }
 
 type MetricsProvider interface {
@@ -64,18 +69,63 @@ func validatePathParam(pathParam string, pathParamName string) error {
 	return nil
 }
 
-func NewO11yServer(logger *zap.SugaredLogger, port int, enableTLS bool, configPath string) O11yServer {
+type appRateCounter struct {
+	windowStart time.Time
+	count       int
+}
+
+type appRateLimiter struct {
+	perMinute int
+	mu        sync.Mutex
+	counters  map[string]*appRateCounter
+}
+
+func newAppRateLimiter(perMinute int) *appRateLimiter {
+	if perMinute <= 0 {
+		return nil
+	}
+	return &appRateLimiter{
+		perMinute: perMinute,
+		counters:  make(map[string]*appRateCounter),
+	}
+}
+
+func (l *appRateLimiter) allow(application string, now time.Time) bool {
+	if l == nil {
+		return true
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	counter, found := l.counters[application]
+	if !found || now.Sub(counter.windowStart) >= time.Minute {
+		l.counters[application] = &appRateCounter{windowStart: now, count: 1}
+		return true
+	}
+	if counter.count >= l.perMinute {
+		return false
+	}
+	counter.count++
+	return true
+}
+
+func NewO11yServer(logger *zap.SugaredLogger, port int, enableTLS bool, configPath string, tlsCertFile string, tlsKeyFile string) O11yServer {
 	return O11yServer{
-		logger:     logger,
-		port:       port,
-		enableTLS:  enableTLS,
-		configPath: configPath,
+		logger:      logger,
+		port:        port,
+		enableTLS:   enableTLS,
+		configPath:  configPath,
+		tlsCertFile: tlsCertFile,
+		tlsKeyFile:  tlsKeyFile,
 	}
 }
 func (ms *O11yServer) Run(ctx context.Context) error {
 
 	if err := ms.readConfig(); err != nil {
 		return fmt.Errorf("loading config: %w", err)
+	}
+	if ms.config.Server != nil {
+		ms.limiter = newAppRateLimiter(ms.config.Server.QueryRateLimitPerAppPerMinute)
 	}
 	if ms.config.Prometheus != nil {
 		ms.provider = NewPrometheusProvider(ms.config.Prometheus, ms.logger)
@@ -126,19 +176,40 @@ func (ms *O11yServer) run(address string, handler *gin.Engine) {
 
 func (ms *O11yServer) runWithTLS(address string, handler *gin.Engine) error {
 	ms.logger.Infof("Starting Argo Metrics Server with TLS.. %s", address)
-	cert, err := tls2.GenerateX509KeyPair()
-	if err != nil {
-		return fmt.Errorf("generating TLS certificate: %w", err)
+	var cert tls.Certificate
+	var err error
+	if ms.tlsCertFile != "" || ms.tlsKeyFile != "" {
+		if ms.tlsCertFile == "" || ms.tlsKeyFile == "" {
+			return errors.New("both tls cert and key file must be provided")
+		}
+		cert, err = tls.LoadX509KeyPair(ms.tlsCertFile, ms.tlsKeyFile)
+		if err != nil {
+			return fmt.Errorf("loading TLS certificate files: %w", err)
+		}
+	} else {
+		selfSignedCert, err := tls2.GenerateX509KeyPair()
+		if err != nil {
+			return fmt.Errorf("generating TLS certificate: %w", err)
+		}
+		cert = *selfSignedCert
 	}
 	server := http.Server{
 		Addr:      address,
 		Handler:   handler,
-		TLSConfig: &tls.Config{Certificates: []tls.Certificate{*cert}, MinVersion: tls.VersionTLS12},
+		TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12},
 	}
 	if err := server.ListenAndServeTLS("", ""); err != nil {
 		ms.logger.Fatal(err)
 	}
 	return nil
+}
+
+func parseApplicationHeaderValue(headerValue string) (string, error) {
+	parts := strings.SplitN(headerValue, ":", 2)
+	if len(parts) != 2 || strings.TrimSpace(parts[1]) == "" {
+		return "", errors.New("invalid Argocd-Application-Name header format")
+	}
+	return strings.TrimSpace(parts[1]), nil
 }
 
 func (ms *O11yServer) queryMetrics(ctx *gin.Context) {
@@ -150,7 +221,12 @@ func (ms *O11yServer) queryMetrics(ctx *gin.Context) {
 		return
 	}
 	val := headers["Argocd-Application-Name"]
-	applicationNameHeader := strings.Split(val[0], ":")[1]
+	applicationNameHeader, err := parseApplicationHeaderValue(val[0])
+	if err != nil {
+		ms.logger.Warn(err)
+		ctx.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
 
 	if err := validateHeader(headers, "Argocd-Project-Name"); err != nil {
 		ms.logger.Warn(err)
@@ -191,6 +267,10 @@ func (ms *O11yServer) queryMetrics(ctx *gin.Context) {
 		ctx.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
+	if !ms.limiter.allow(applicationNameQueryParam, time.Now()) {
+		ctx.JSON(http.StatusTooManyRequests, gin.H{"error": "query rate limit exceeded for application"})
+		return
+	}
 	ms.provider.execute(ctx)
 }
 
@@ -204,7 +284,12 @@ func (ms *O11yServer) dashboardConfig(ctx *gin.Context) {
 	}
 
 	val := headers["Argocd-Application-Name"]
-	applicationNameHeader := strings.Split(val[0], ":")[1]
+	applicationNameHeader, err := parseApplicationHeaderValue(val[0])
+	if err != nil {
+		ms.logger.Warn(err)
+		ctx.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
 
 	applicationNamePathParam := ctx.Param("application")
 

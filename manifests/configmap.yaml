@@ -5,6 +5,9 @@ metadata:
 data:
   config.json: |
     {
+    "server": {
+      "queryRateLimitPerAppPerMinute": 0
+    },
     "prometheus": {
       "applications": [
         {
@@ -643,4 +646,43 @@ data:
         "address": "http://prometheus-operated.monitoring.svc.cluster.local:9090"
       }
     }
+  wavefront.config.example.json: |
+      {
+        "wavefront": {
+          "applications": [
+            {
+              "name": "default",
+              "default": true,
+              "dashboards": [
+                {
+                  "groupKind": "deployment",
+                  "tabs": ["Golden Signal"],
+                  "rows": [
+                    {
+                      "name": "pod",
+                      "title": "Pods",
+                      "tab": "Golden Signal",
+                      "graphs": [
+                        {
+                          "name": "pod_cpu_line",
+                          "title": "CPU",
+                          "description": "",
+                          "graphType": "line",
+                          "metricName": "pod",
+                          "queryExpression": "ts(kubernetes.pod.cpu.usage, pod=~\"{{.name}}\")"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "provider": {
+            "name": "default",
+            "default": true,
+            "address": "https://<your-instance>.wavefront.com"
+          }
+        }
+      }
     }

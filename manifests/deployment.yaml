@@ -18,7 +18,18 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - '-enableTLS=false'
+            # To use a Secret-mounted cert instead of the generated self-signed cert:
+            # - '-enableTLS=true'
+            # - '-tls-cert-file=/tls/tls.crt'
+            # - '-tls-key-file=/tls/tls.key'
           name: argocd-metrics-server
+          # For Wavefront provider, configure token from Secret:
+          # env:
+          #   - name: WAVEFRONT_TOKEN
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: argocd-metrics-server-wavefront
+          #         key: token
           ports:
             - containerPort: 9003
               name: metrics
@@ -31,7 +42,14 @@ spec:
             - name: config-volume
               mountPath: /app/config.json
               subPath: config.json
+            # Mount TLS Secret when using external certificates:
+            # - name: tls-secret-volume
+            #   mountPath: /tls
+            #   readOnly: true
       volumes:
         - name: config-volume
           configMap:
             name: argocd-metrics-server-configmap
+        # - name: tls-secret-volume
+        #   secret:
+        #     secretName: argocd-metrics-server-tls

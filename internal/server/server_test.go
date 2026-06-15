@@ -116,7 +116,7 @@ func createContextAndNewO11yServer(w *httptest.ResponseRecorder) (ctx *gin.Conte
 	var port int
 	var enableTLS bool
 	logger := logging.NewLogger().Named("metric-sever")
-	ms = NewO11yServer(logger, port, enableTLS, "app/config.json")
+	ms = NewO11yServer(logger, port, enableTLS, "app/config.json", "", "")
 	var temp MetricsProvider = MockO11yServer{}
 	ms.provider = temp
 	ctx = GetTestGinContext(w)
@@ -218,4 +218,104 @@ func MockJsonGet(c *gin.Context, header map[string][]string, pathParams map[stri
 		temp.Add(key, value)
 	}
 	c.Request.URL.RawQuery = temp.Encode()
+}
+
+func TestQueryMetricsInvalidApplicationHeaderFormat(t *testing.T) {
+	w := httptest.NewRecorder()
+	ctx, ms := createContextAndNewO11yServer(w)
+	MockJsonGet(ctx, map[string][]string{
+		"Argocd-Application-Name": []string{"test"},
+		"Argocd-Project-Name":     []string{"default"},
+	}, map[string]string{}, map[string]string{
+		"application_name": "test",
+		"project":          "default",
+	})
+	ms.queryMetrics(ctx)
+	assert.EqualValues(t, http.StatusBadRequest, w.Code)
+}
+
+func TestQueryMetricsRateLimitPerApplication(t *testing.T) {
+	headers := map[string][]string{
+		"Argocd-Application-Name": []string{"argo:test"},
+		"Argocd-Project-Name":     []string{"default"},
+	}
+	queryParams := map[string]string{
+		"application_name": "test",
+		"project":          "default",
+	}
+
+	w1 := httptest.NewRecorder()
+	ctx1, ms := createContextAndNewO11yServer(w1)
+	ms.limiter = newAppRateLimiter(1)
+	MockJsonGet(ctx1, headers, map[string]string{}, queryParams)
+	ms.queryMetrics(ctx1)
+	assert.EqualValues(t, http.StatusOK, w1.Code)
+
+	w2 := httptest.NewRecorder()
+	ctx2 := GetTestGinContext(w2)
+	MockJsonGet(ctx2, headers, map[string]string{}, queryParams)
+	ms.queryMetrics(ctx2)
+	assert.EqualValues(t, http.StatusTooManyRequests, w2.Code)
+}
+
+func TestQueryMetricsRateLimitIsPerApplication(t *testing.T) {
+	ms := NewO11yServer(logging.NewLogger().Named("metric-sever"), 0, false, "app/config.json", "", "")
+	ms.provider = MockO11yServer{}
+	ms.limiter = newAppRateLimiter(1)
+
+	headersApp1 := map[string][]string{
+		"Argocd-Application-Name": {"argo:app-one"},
+		"Argocd-Project-Name":     {"default"},
+	}
+	headersApp2 := map[string][]string{
+		"Argocd-Application-Name": {"argo:app-two"},
+		"Argocd-Project-Name":     {"default"},
+	}
+
+	w1 := httptest.NewRecorder()
+	ctx1 := GetTestGinContext(w1)
+	MockJsonGet(ctx1, headersApp1, map[string]string{}, map[string]string{
+		"application_name": "app-one",
+		"project":          "default",
+	})
+	ms.queryMetrics(ctx1)
+	assert.EqualValues(t, http.StatusOK, w1.Code)
+
+	w2 := httptest.NewRecorder()
+	ctx2 := GetTestGinContext(w2)
+	MockJsonGet(ctx2, headersApp2, map[string]string{}, map[string]string{
+		"application_name": "app-two",
+		"project":          "default",
+	})
+	ms.queryMetrics(ctx2)
+	assert.EqualValues(t, http.StatusOK, w2.Code)
+}
+
+type providerErrorMock struct{}
+
+func (providerErrorMock) init() error { return nil }
+func (providerErrorMock) execute(ctx *gin.Context) {
+	ctx.JSON(http.StatusBadGateway, gin.H{"error": "upstream query failed"})
+}
+func (providerErrorMock) getDashboard(ctx *gin.Context) {
+	ctx.JSON(http.StatusBadGateway, gin.H{"error": "upstream dashboard failed"})
+}
+func (providerErrorMock) getType() string { return "error" }
+
+func TestQueryMetricsProviderErrorIsPropagated(t *testing.T) {
+	ms := NewO11yServer(logging.NewLogger().Named("metric-sever"), 0, false, "app/config.json", "", "")
+	ms.provider = providerErrorMock{}
+
+	w := httptest.NewRecorder()
+	ctx := GetTestGinContext(w)
+	MockJsonGet(ctx, map[string][]string{
+		"Argocd-Application-Name": {"argo:test"},
+		"Argocd-Project-Name":     {"default"},
+	}, map[string]string{}, map[string]string{
+		"application_name": "test",
+		"project":          "default",
+	})
+	ms.queryMetrics(ctx)
+	assert.EqualValues(t, http.StatusBadGateway, w.Code)
+	assert.Contains(t, w.Body.String(), "upstream query failed")
 }
